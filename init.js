@@ -1,18 +1,36 @@
 var fs = require('fs');
 var cluster = require('cluster');
+var os = require('os');
 
 var redis = require('redis');
 
-////simplewallet --wallet-file=wallet.bin --pass=test --rpc-bind-port=8082
-
-
 //./simplewallet --wallet-file=wallet.bin --pass=test --rpc-bind-port=8342 --daemon-port=32837
 
+var configFile = 'config.json';
+
+process.argv.forEach(function (val, index, array) {
+    if (val.indexOf('-config=') === 0){
+        configFile = val.split('=')[1];
+    }
+});
+
+try {
+    global.config = JSON.parse(fs.readFileSync(configFile));
+}
+catch(e){
+    console.error('Failed to read config file ' + configFile + '\n\n' + e);
+    return;
+}
+
+global.config.version = "v0.85";
 
 if (cluster.isWorker){
     switch(process.env.workerType){
         case 'pool':
             require('./lib/pool.js');
+            break;
+        case 'blockUnlocker':
+            require('./lib/blockUnlocker.js');
             break;
         case 'paymentProcessor':
             require('./lib/paymentProcessor.js');
@@ -27,8 +45,6 @@ if (cluster.isWorker){
     return;
 }
 
-var config = JSON.parse(fs.readFileSync('config.json'));
-
 var logger = require('./lib/logUtil.js')({
     logLevel: config.logLevel,
     logColors: config.logColors
@@ -37,11 +53,12 @@ var logger = require('./lib/logUtil.js')({
 var logSystem = 'Master';
 var logSubsystem = null;
 
-var os = require('os');
+
 
 (function init(){
     checkRedisVersion(function(){
         spawnPoolWorkers();
+        spawnBlockUnlocker();
         spawnPaymentProcessor();
         spawnApi();
         spawnCli();
@@ -53,7 +70,7 @@ function checkRedisVersion(callback){
     var redisClient = redis.createClient(config.redis.port, config.redis.host);
     redisClient.info(function(error, response){
         if (error){
-            logger.error(logSystem, logComponent, logSubCat, 'Redis version check failed');
+            logger.error(logSystem, logSubsystem, null, 'Redis version check failed');
             return;
         }
         var parts = response.split('\r\n');
@@ -139,6 +156,22 @@ function spawnPoolWorkers(){
             logger.debug(logSystem, logSubsystem, 'Pool Spawner', 'Spawned pool on ' + numForks + ' thread(s)');
         }
     }, 10);
+}
+
+function spawnBlockUnlocker(){
+
+    if (!config.blockUnlocker || !config.blockUnlocker.enabled) return;
+
+    var worker = cluster.fork({
+        workerType: 'blockUnlocker'
+    });
+    worker.on('exit', function(code, signal){
+       logger.error(logSystem, logSubsystem, 'Block Unlocker', 'Block unlocker died, spawning replacement...');
+        setTimeout(function(){
+            spawnBlockUnlocker();
+        }, 2000);
+    });
+
 }
 
 function spawnPaymentProcessor(){

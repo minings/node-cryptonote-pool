@@ -13,7 +13,7 @@
 
     </script>
 
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-timeago/1.4.0/jquery.timeago.min.js"></script>
 
@@ -55,12 +55,9 @@
         .stats > div > span{
             font-weight: bold;
         }
-        #crypto-widget-view{
-            width: 100%;
-            height: 180px;
-            border: none;
-            overflow-y: hidden;
-            margin-left: -10px;
+        .marketFooter{
+            font-size: 10px;
+            opacity: 0.6;
         }
         #networkLastReward{
             text-transform: uppercase;
@@ -165,44 +162,40 @@
 <script>
 
     $(function(){
+
+
         $.get(api + '/stats', function(data){
             renderStats(data);
-
-            var address = docCookies.getItem('mining_address');
-
-            if (address){
-                $('#yourStatsInput').val(address);
-                $('#lookUp').click();
-            }
-
+            updateMarkets();
         });
 
-        if (window.EventSource) {
 
-            var stats_update = $('#stats_updated')[0];
-
-            var source = new EventSource(api + '/live_stats');
-            source.addEventListener('message', function (e) {
-                var data = JSON.parse(e.data);
+        function fetchLiveStats() {
+            $.ajax({
+                url: api + '/live_stats',
+                dataType: 'json',
+                cache: 'false'
+            }).done(function(data){
                 renderStats(data);
-
-                stats_update.style.transition = 'opacity 100ms ease-out';
-                stats_update.style.opacity = 1;
-                setTimeout(function(){
-                    stats_update.style.transition = 'opacity 7000ms linear';
-                    stats_update.style.opacity = 0;
-                }, 500);
-
+            }).fail(function(){
+                console.log('live stats long polling connection failed');
+            }).always(function () {
+                fetchLiveStats();
             });
         }
+
+        fetchLiveStats();
+
 
         window.onhashchange = function(){
             pageRouter();
         };
 
+
+
         pageRouter();
 
-        $('#networkLastBlockFound,#poolLastBlockFound,#yourLastShare').timeago();
+        $('#networkLastBlockFound,#poolLastBlockFound,#yourLastShare,#marketLastUpdated').timeago();
 
         var $miningPorts = $('#miningPorts');
         var miningPortTemplate = $miningPorts.html();
@@ -211,6 +204,8 @@
         var lookupBtnHtml = $('#lookUp').html();
 
         var addressEventSource;
+        var addressTimeout;
+
         $('#lookUp').click(function(){
 
             var address = $('#yourStatsInput').val().trim();
@@ -222,41 +217,95 @@
             $('#addressError').hide();
             $('.yourStats').hide();
             $(this).html('<i class="fa fa-refresh fa-spin"></i> Searching...');
-            if (addressEventSource) addressEventSource.close();
-            addressEventSource = new EventSource(api + '/stats_address?address=' + address);
-            addressEventSource.addEventListener('message', function(e){
-                $('#lookUp').html(lookupBtnHtml);
-                var data = JSON.parse(e.data);
-                if (data.stats){
-                    $('#addressError').hide();
-                    $('#yourAddressDisplay').text(address);
-                    $('#yourLastShare').timeago('update', new Date(parseInt(data.stats.lastShare) * 1000).toISOString());
-                    $('#yourHashrateHolder').text((data.stats.hashrate || '0 H') + '/sec');
-                    $('#yourHashes').text(data.stats.hashes || '0');
-                    $('#yourPaid').text(data.stats.paid);
+            if (addressEventSource) addressEventSource.abort();
+            if (addressTimeout) clearTimeout(addressTimeout);
 
-                    $('.yourStats').show();
-                    docCookies.setItem('mining_address', address, Infinity);
-                    return;
-                }
-                $('.yourStats').hide();
-                $('#addressError').text(data.error).show();
-            });
-            addressEventSource.addEventListener('open', function(e){
-                $('#lookUp').html(lookupBtnHtml);
-            });
-            addressEventSource.addEventListener('error', function(e){
-                $('#lookUp').html(lookupBtnHtml);
-                if ($('#addressError').is(':hidden'))
-                    $('#addressError').text('Connection error').show();
-            });
-            addressEventSource.addEventListener('close', function(e){
-                $('#lookUp').html(lookupBtnHtml);
-                $('#addressError').text('Connection closed').show();
-            })
+            function fetchAddressStats(longpoll){
+                addressEventSource = $.ajax({
+                    url: api + '/stats_address',
+                    data: {
+                        address: address,
+                        longpoll: longpoll
+                    },
+                    dataType: 'json',
+                    cache: 'false',
+                    success: function(data){
+
+                        $('#lookUp').html(lookupBtnHtml);
+
+                        if (!data.stats){
+                            $('.yourStats').hide();
+                            $('#addressError').text(data.error).show();
+
+                            if (addressTimeout) clearTimeout(addressTimeout);
+                            addressTimeout = setTimeout(function(){
+                                fetchAddressStats(false);
+                            }, 2000);
+
+                            return;
+                        }
+
+
+                        $('#addressError').hide();
+                        $('#yourAddressDisplay').text(address);
+                        $('#yourLastShare').timeago('update', new Date(parseInt(data.stats.lastShare) * 1000).toISOString());
+                        $('#yourHashrateHolder').text((data.stats.hashrate || '0 H') + '/sec');
+                        $('#yourHashes').text(data.stats.hashes || '0');
+                        $('#yourPaid').text(data.stats.paid);
+                        $('#yourPendingBalance').text(data.stats.balance);
+
+                        $('.yourStats').show();
+                        docCookies.setItem('mining_address', address, Infinity);
+
+                        fetchAddressStats(true);
+
+                    },
+                    error: function(e){
+                        if (e.statusText === 'abort') return;
+                        $('#lookUp').html(lookupBtnHtml);
+                        $('#addressError').text('Connection error').show();
+
+                        if (addressTimeout) clearTimeout(addressTimeout);
+                        addressTimeout = setTimeout(function(){
+                            fetchAddressStats(false);
+                        }, 2000);
+                    }
+                });
+            }
+            fetchAddressStats(false);
         });
 
+
         var lastPortsJson = '';
+        var stats_update = $('#stats_updated')[0];
+
+
+        var cryptonatorMarkets;
+
+        function updateMarkets(){
+            var completedFetches = 0;
+            var marketsData = [];
+            for (var i = 0; i < cryptonatorMarkets.length; i++){
+                (function(i){
+                    $.get('https://www.cryptonator.com/api/ticker/' + cryptonatorMarkets[i], function(data){
+                        marketsData[i] = data;
+                        completedFetches++;
+                        if (completedFetches !== cryptonatorMarkets.length) return;
+
+                        var $marketHeader = $('#marketHeader');
+                        $('.marketTicker').remove();
+                        for (var f = marketsData.length - 1; f >= 0 ; f--){
+                            var price = parseFloat(marketsData[f].ticker.price);
+                            if (price > 1) price = Math.round(price * 100) / 100;
+                            $marketHeader.after('<div class="marketTicker">' + marketsData[f].ticker.base + ': <span>' + price + ' ' + marketsData[f].ticker.target + '</span></div>');
+                        }
+                        $('#marketLastUpdated').timeago('update', new Date(marketsData[0].timestamp * 1000).toISOString());
+                    }, 'json');
+                })(i);
+            }
+        }
+
+        setInterval(updateMarkets, 300000); //poll market data every 5 minutes
 
         function renderStats(stats){
 
@@ -269,12 +318,11 @@
             $('#blockchainHeight').text(stats.network.height);
             $('#networkLastReward').text(stats.network.reward + ' ' + stats.config.symbol);
 
-            $('#poolHashrate').text(stats.pool.hashrate + '/sec');
+            $('#poolHashrate').text(getReadableHashRateString(stats.pool.hashrate) + '/sec');
 
-            var cryptonatorUrl = 'https://www.cryptonator.com/widget/multi?border_corners=square&border_color=ffffff&' + stats.config.cryptonatorWidget;
-            if ($('#crypto-widget-view').attr('src') !== cryptonatorUrl){
-                $('#crypto-widget-view').attr('src', cryptonatorUrl);
-            }
+
+            cryptonatorMarkets = stats.config.cryptonatorWidget;
+
 
             if (stats.pool.lastBlockFound){
                 var d = new Date(parseInt(stats.pool.lastBlockFound)).toISOString();
@@ -329,6 +377,15 @@
                 var height = parseInt(this.children[0].innerHTML);
                 this.children[1].innerHTML = getMaturity(stats.config.depth, stats.network.height, height);
             });
+
+            $('#poolVersion').text(stats.config.version);
+
+            stats_update.style.transition = 'opacity 100ms ease-out';
+            stats_update.style.opacity = 1;
+            setTimeout(function(){
+                stats_update.style.transition = 'opacity 7000ms linear';
+                stats_update.style.opacity = 0;
+            }, 500);
 
         }
 
@@ -390,67 +447,75 @@
 
         }
 
+        var docCookies = {
+            getItem: function (sKey) {
+                return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
+            },
+            setItem: function (sKey, sValue, vEnd, sPath, sDomain, bSecure) {
+                if (!sKey || /^(?:expires|max\-age|path|domain|secure)$/i.test(sKey)) { return false; }
+                var sExpires = "";
+                if (vEnd) {
+                    switch (vEnd.constructor) {
+                        case Number:
+                            sExpires = vEnd === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + vEnd;
+                            break;
+                        case String:
+                            sExpires = "; expires=" + vEnd;
+                            break;
+                        case Date:
+                            sExpires = "; expires=" + vEnd.toUTCString();
+                            break;
+                    }
+                }
+                document.cookie = encodeURIComponent(sKey) + "=" + encodeURIComponent(sValue) + sExpires + (sDomain ? "; domain=" + sDomain : "") + (sPath ? "; path=" + sPath : "") + (bSecure ? "; secure" : "");
+                return true;
+            },
+            removeItem: function (sKey, sPath, sDomain) {
+                if (!sKey || !this.hasItem(sKey)) { return false; }
+                document.cookie = encodeURIComponent(sKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" + ( sDomain ? "; domain=" + sDomain : "") + ( sPath ? "; path=" + sPath : "");
+                return true;
+            },
+            hasItem: function (sKey) {
+                return (new RegExp("(?:^|;\\s*)" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=")).test(document.cookie);
+            },
+            keys: /* optional method: you can safely remove it! */ function () {
+                var aKeys = document.cookie.replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "").split(/\s*(?:\=[^;]*)?;\s*/);
+                for (var nIdx = 0; nIdx < aKeys.length; nIdx++) { aKeys[nIdx] = decodeURIComponent(aKeys[nIdx]); }
+                return aKeys;
+            }
+        };
+
+        function getReadableHashRateString(hashrate){
+            var i = 0;
+            var byteUnits = [' H', ' KH', ' MH', ' GH', ' TH', ' PH' ];
+            while (hashrate > 1024){
+                hashrate = hashrate / 1024;
+                i++;
+            }
+            return hashrate.toFixed(2) + byteUnits[i];
+        }
+
+
+        function pageRouter(){
+            $('.page').hide();
+            $('.hot_link').parent().removeClass('active');
+            var $link = $('a.hot_link[href="' + (window.location.hash || '#') + '"]');
+
+            $link.parent().addClass('active');
+            var page = $link.data('page');
+            $('#' + page).show();
+        }
+
+        var address = docCookies.getItem('mining_address');
+
+        if (address){
+            $('#yourStatsInput').val(address);
+            $('#lookUp').click();
+        }
     });
 
 
-    var docCookies = {
-        getItem: function (sKey) {
-            return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
-        },
-        setItem: function (sKey, sValue, vEnd, sPath, sDomain, bSecure) {
-            if (!sKey || /^(?:expires|max\-age|path|domain|secure)$/i.test(sKey)) { return false; }
-            var sExpires = "";
-            if (vEnd) {
-                switch (vEnd.constructor) {
-                    case Number:
-                        sExpires = vEnd === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + vEnd;
-                        break;
-                    case String:
-                        sExpires = "; expires=" + vEnd;
-                        break;
-                    case Date:
-                        sExpires = "; expires=" + vEnd.toUTCString();
-                        break;
-                }
-            }
-            document.cookie = encodeURIComponent(sKey) + "=" + encodeURIComponent(sValue) + sExpires + (sDomain ? "; domain=" + sDomain : "") + (sPath ? "; path=" + sPath : "") + (bSecure ? "; secure" : "");
-            return true;
-        },
-        removeItem: function (sKey, sPath, sDomain) {
-            if (!sKey || !this.hasItem(sKey)) { return false; }
-            document.cookie = encodeURIComponent(sKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" + ( sDomain ? "; domain=" + sDomain : "") + ( sPath ? "; path=" + sPath : "");
-            return true;
-        },
-        hasItem: function (sKey) {
-            return (new RegExp("(?:^|;\\s*)" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=")).test(document.cookie);
-        },
-        keys: /* optional method: you can safely remove it! */ function () {
-            var aKeys = document.cookie.replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "").split(/\s*(?:\=[^;]*)?;\s*/);
-            for (var nIdx = 0; nIdx < aKeys.length; nIdx++) { aKeys[nIdx] = decodeURIComponent(aKeys[nIdx]); }
-            return aKeys;
-        }
-    };
 
-    function getReadableHashRateString(hashrate){
-        var i = 0;
-        var byteUnits = [' H', ' KH', ' MH', ' GH', ' TH', ' PH' ];
-        while (hashrate > 1024){
-            hashrate = hashrate / 1024;
-            i++;
-        }
-        return hashrate.toFixed(2) + byteUnits[i];
-    }
-
-
-    function pageRouter(){
-        $('.page').hide();
-        $('.hot_link').parent().removeClass('active');
-        var $link = $('a.hot_link[href="' + (window.location.hash || '#') + '"]');
-
-        $link.parent().addClass('active');
-        var page = $link.data('page');
-        $('#' + page).show();
-    }
 
 </script>
 
@@ -502,8 +567,9 @@
             </div>
 
             <div class="col-md-4 stats">
-                <h3>Market</h3>
-                <iframe id="crypto-widget-view" allowTransparency="true" scrolling="no" frameborder="0"></iframe>
+                <h3 id="marketHeader">Market</h3>
+                <div class="marketFooter">Updated: <span id="marketLastUpdated"></span></div>
+                <div class="marketFooter">Powered by <a href="https://www.cryptonator.com/">Cryptonator</a></div>
             </div>
         </div>
 
@@ -513,11 +579,12 @@
             <input class="form-control" id="yourStatsInput" type="text">
             <button class="btn btn-default" id="lookUp"><i class="fa fa-search"></i> Lookup</button>
             <div id="addressError"></div>
-            <div class="yourStats"><i class="fa fa-key"></i> Address: <span  id="yourAddressDisplay"></span></div>
+            <div class="yourStats"><i class="fa fa-key"></i> Address: <span id="yourAddressDisplay"></span></div>
+            <div class="yourStats"><i class="fa fa-bank"></i> Pending Balance: <span id="yourPendingBalance"></span></div>
+            <div class="yourStats"><i class="fa fa-money"></i> Total Paid: <span id="yourPaid"></span></div>
             <div class="yourStats"><i class="fa fa-clock-o"></i> Last Share Submitted: <span id="yourLastShare"></span></div>
             <div class="yourStats"><i class="fa fa-tachometer"></i> Hash Rate: <span id="yourHashrateHolder"></span></div>
             <div class="yourStats"><i class="fa fa-cloud-upload"></i> Total Hashes Submitted: <span id="yourHashes"></span></div>
-            <div class="yourStats"><i class="fa fa-money"></i> Total Paid: <span id="yourPaid"></span></div>
         </div>
 
     </div>
@@ -525,7 +592,7 @@
     <div class="page" id="page_pool_blocks">
         <div class="blocksStatHolder">
             <h4>Block Candidates</h4>
-            <span><span id="blocksCountPending"></span> Pending Maturity</span>
+            <span><span id="blocksCountPending"></span> Maturing</span>
             <span class="bg-success"><span id="blocksCountUnlocked"></span> Unlocked</span>
             <span class="bg-danger"><span id="blocksCountOrphaned"></span> Orphaned</span>
             <span class="bg-info">Maturity requires <span id="blocksMaturityCount"></span> blocks</span>
@@ -604,8 +671,9 @@
 
 <footer>
     <div class="text-muted">
-        This site is powered by the open source <a target="_blank" href="//github.com/zone117x/node-cryptonote-pool"><i class="fa fa-github"></i> node-cryptonote-pool</a>
-        project created by Matthew Little and licensed under the <a href="http://www.gnu.org/licenses/gpl-2.0.html">GPL</a>
+        This site is powered by <a target="_blank" href="//github.com/zone117x/node-cryptonote-pool"><i class="fa fa-github"></i> node-cryptonote-pool</a>
+        <span id="poolVersion"></span>
+        created by Matthew Little and open sourced under the <a href="http://www.gnu.org/licenses/gpl-2.0.html">GPL</a>
     </div>
 </footer>
 

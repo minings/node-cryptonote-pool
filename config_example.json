@@ -1,7 +1,7 @@
 {
 
     "coin": "monero",
-    "symbol": "MRO",
+    "symbol": "XMR",
 
     "logLevel": "debug",
     "logColors": true,
@@ -14,7 +14,7 @@
 
     "email": "support@cryppit.com",
 
-    "cryptonatorWidget": "num=3&base_0=Monero%20(XMR)&target_0=Bitcoin%20(BTC)&base_1=Monero%20(XMR)&target_1=US%20Dollar%20(USD)&base_2=Monero%20(XMR)&target_2=Euro%20(EUR)",
+    "cryptonatorWidget": ["XMR-BTC", "XMR-USD", "XMR-EUR"],
 
     "easyminerDownload": "https://github.com/zone117x/cryptonote-easy-miner/releases/",
 
@@ -78,11 +78,18 @@
 
     "payments": {
         "enabled": true,
+        "interval": 600,
+        "maxAddresses": 50,
         "transferFee": 5000000000,
+        "minPayment": 100000000000,
+        "denomination": 100000000000
+    },
+
+    "blockUnlocker": {
+        "enabled": true,
         "interval": 30,
-        "poolFee": 2,
         "depth": 60,
-        "maxAddresses": 50
+        "poolFee": 2
     },
 
     "api": {

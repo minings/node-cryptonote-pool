@@ -32,19 +32,22 @@ Comes with lightweight example front-end script which uses the pool's AJAX API.
     block percent, and less error prone
 * IP banning to prevent low-diff share attacks
 * Socket flooding detection
-* Payment processing (with splintered transactions to deal with max transaction size)
+* Payment processing
+  * Splintered transactions to deal with max transaction size
+  * Minimum payment threshold before balance will be paid out
+  * Minimum denomination for truncating payment amount precision to reduce size/complexity of block transactions
 * Detailed logging
 * Ability to configure multiple ports - each with their own difficulty
 * Variable difficulty / share limiter
 * Share trust algorithm to reduce share validation hashing CPU load
 * Clustering for vertical scaling
 * Modular components for horizontal scaling (pool server, database, stats/API, payment processing, front-end)
-* Live stats API (using CORS with AJAX and HTML5 EventSource)
+* Live stats API (using AJAX long polling with CORS)
   * Currency network/block difficulty
   * Current block height
   * Network hashrate
   * Pool hashrate
-  * Each miners' individual stats (hashrate, shares submitted, total paid, etc)
+  * Each miners' individual stats (hashrate, shares submitted, pending balance, total paid, etc)
   * Blocks found (pending, confirmed, and orphaned)
 * An easily extendable, responsive, light-weight front-end using API to display data
 * Worker login validation (make sure miners are using proper wallet addresses for mining)
@@ -62,10 +65,20 @@ Comes with lightweight example front-end script which uses the pool's AJAX API.
 
 #### Pools Using This Software
 
-* http://moneropool.org
 * http://moneropool.com
+* http://monero.farm
+* http://extremehash.com
 * http://extremepool.org
-* http://mon.hashharder.com
+* http://hashinvest.net
+* http://moneropool.com.br
+* http://monerominers.net
+* http://monero.crypto-pool.fr
+* http://cryptonotepool.org.uk
+* http://minexmr.com
+* http://kippo.eu
+* http://pool.cryptoescrow.eu
+* http://coinmine.pl/xmr
+* http://moneropool.org
 
 
 Usage
@@ -75,6 +88,9 @@ Usage
 * Coin daemon(s) (find the coin's repo and build latest version from source)
 * [Node.js](http://nodejs.org/) v0.10+ ([follow these installation instructions](https://github.com/joyent/node/wiki/Installing-Node.js-via-package-manager))
 * [Redis](http://redis.io/) key-value store v2.6+ ([follow these instructions](http://redis.io/topics/quickstart))
+* libssl required for the node-multi-hashing module
+  * For Ubuntu: `sudo apt-get install libssl-dev`
+
 
 ##### Seriously
 Those are legitimate requirements. If you use old versions of Node.js or Redis that may come with your system package manager then you will have problems. Follow the linked instructions to get the last stable versions.
@@ -86,6 +102,7 @@ you are using - a good place to start with redis is [data persistence](http://re
 
 
 #### 1) Downloading & Installing
+
 
 Clone the repository and run `npm update` for all the dependencies to be installed:
 
@@ -129,8 +146,8 @@ Explanation for each field:
     /* Contact email address. */
     "email": "support@cryppit.com",
 
-    /* Market display widget params from https://www.cryptonator.com/widget */
-    "cryptonatorWidget": "num=2&base_0=Monero%20(MRO)&target_0=Bitcoin%20(BTC)&base_1=Monero%20(MRO)&target_1=US%20Dollar%20(USD)",
+    /* Market stat display params from https://www.cryptonator.com/widget */
+    "cryptonatorWidget": ["XMR-BTC", "XMR-USD", "XMR-EUR"],
 
     /* Download link to cryptonote-easy-miner for Windows users. */
     "easyminerDownload": "https://github.com/zone117x/cryptonote-easy-miner/releases/",
@@ -223,12 +240,21 @@ Explanation for each field:
     /* Module that sends payments to miners according to their submitted shares. */
     "payments": {
         "enabled": true,
-        "transferFee": 5000000000,
-        "interval": 30, //how often to run in seconds
-        "poolFee": 2, //2% pool fee
+        "interval": 600, //how often to run in seconds
+        "maxAddresses": 50, //split up payments if sending to more than this many addresses
+        "transferFee": 5000000000, //(min units) fee to pay for each transaction
+        "minPayment": 100000000000, //(min units) miner balance required before sending payment
+        "denomination": 100000000000 //(min units) truncate to this precision and store remainder
+    },
+
+    /* Module that monitors the submitted block maturities and manages rounds. Confirmed blocks
+       mark the end of a round where workers' balances are increased in proportion to their shares. */
+    "blockUnlocker": {
+        "enabled": true,
+        "interval": 30, //how often to check block statuses in seconds
         "depth": 60, //block depth required to send payments (CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW)
-        "maxAddresses": 50 //split up payments if sending to more than this many addresses
-    }
+        "poolFee": 2 //2% pool fee
+    },
 
     /* AJAX/EventSource API used for front-end website. */
     "api": {
@@ -275,6 +301,12 @@ point to your zip file.
 
 ```bash
 node init.js
+```
+
+The file `config.json` is used by default but a file can be specified using the `-config=file` command argument, for example:
+
+```bash
+node init.js -config=config_backup.json
 ```
 
 
