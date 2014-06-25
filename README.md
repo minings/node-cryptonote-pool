@@ -1,7 +1,7 @@
 node-cryptonote-pool
 ====================
 
-High performance Node.js (with native C addons) mining pool for CryptoNote based coins such as Bytecoin, Monero, QuazarCoin, Fantomcoin, HoneyPenny, etc..
+High performance Node.js (with native C addons) mining pool for CryptoNote based coins such as Bytecoin, Monero, QuazarCoin, HoneyPenny, etc..
 Comes with lightweight example front-end script which uses the pool's AJAX API.
 
 
@@ -16,6 +16,8 @@ Comes with lightweight example front-end script which uses the pool's AJAX API.
   * [Configuration](#2-configuration)
   * [Configure Easyminer](#3-optional-configure-cryptonote-easy-miner-for-your-pool)
   * [Starting the Pool](#4-start-the-pool)
+  * [Host the front-end](#5-host-the-front-end)
+  * [Customizing your website](#6-customize-your-website)
   * [Upgrading](#upgrading)
 * [Setting up Testnet](#setting-up-testnet)
 * [JSON-RPC Commands from CLI](#json-rpc-commands-from-cli)
@@ -58,6 +60,7 @@ Comes with lightweight example front-end script which uses the pool's AJAX API.
 * [CryptoNote Forum](https://forum.cryptonote.org/)
 * [Bytecoin Github](https://github.com/amjuarez/bytecoin)
 * [Monero Github](https://github.com/monero-project/bitmonero)
+* [Monero Announcement Thread](https://bitcointalk.org/index.php?topic=583449.0)
 * IRC (freenode)
   * Support / general discussion join #monero: https://webchat.freenode.net/?channels=#monero
   * Development discussion join #monero-dev: https://webchat.freenode.net/?channels=#monero-dev
@@ -114,173 +117,162 @@ npm update
 
 #### 2) Configuration
 
+
+*Warning for Cyrptonote coins other than Monero:* this software may or may not work with any given cryptonote coin.
+Be wary of altcoins that change the number of minimum coin units because you will have to reconfigure several config
+values to account for those changes. Unless you're offering a bounty reward - do not open an issue asking for help
+getting a coin other than Monero working with this software.
+
+
 Copy the `config_example.json` file to `config.json` then overview each options and change any to match your preferred setup.
 
 
 Explanation for each field:
 ```javascript
-{
-    /* Used for storage in redis so multiple coins can share the same redis instance. */
-    "coin": "monero",
+/* Used for storage in redis so multiple coins can share the same redis instance. */
+"coin": "monero",
 
-    /* Used for front-end display */
-    "symbol": "MRO",
+/* Used for front-end display */
+"symbol": "MRO",
 
-    /* Specifies the level of log output verbosity. Anything more severe than the level specified
-       will also be logged. */
-    "logLevel": "debug", //or "warn", "error"
+"logging": {
 
-    /* By default the pool logs to console and gives pretty colors. If you direct that output to a
-       log file then disable this feature to avoid nasty characters in your log file. */
-    "logColors": true,
+    "files": {
 
-    /* Minimum units in a single coin, for Bytecoin its 100000000. */
-    "coinUnits": 1000000000000,
+        /* Specifies the level of log output verbosity. This level and anything
+           more severe will be logged. Options are: info, warn, or error. */
+        "level": "info",
 
-    /* Host that simpleminer is pointed to.  */
-    "poolHost": "example.com",
+        /* Directory where to write log files. */
+        "directory": "logs",
 
-    /* IRC Server and room used for embedded KiwiIRC chat on front-end. */
-    "irc": "irc.freenode.net/#monero",
-
-    /* Contact email address. */
-    "email": "support@cryppit.com",
-
-    /* Market stat display params from https://www.cryptonator.com/widget */
-    "cryptonatorWidget": ["XMR-BTC", "XMR-USD", "XMR-EUR"],
-
-    /* Download link to cryptonote-easy-miner for Windows users. */
-    "easyminerDownload": "https://github.com/zone117x/cryptonote-easy-miner/releases/",
-
-    /* Download link to simplewallet for your configured coin. */
-    "simplewalletDownload": "http://bit.ly/monero-starter-pack",
-
-    /* Used for front-end block links. For other coins it can be changed, for example with
-       Bytecoin you can use "https://minergate.com/blockchain/bcn/block/". */
-    "blockchainExplorer": "http://monerochain.info/block/",
-
-    /* Modular Pool Server */
-    "poolServer": {
-        "enabled": true,
-
-        /* Set to "auto" by default which will spawn one process/fork/worker for each CPU
-           core in your system. Each of these workers will run a separate instance of your pool(s),
-           and the kernel will load balance miners using these forks. Optionally, the 'forks' field
-           can be a number for how many forks will be spawned. */
-        "clusterForks": "auto",
-
-        /* Address where block rewards go, and miner payments come from. */
-        "poolAddress": "4AsBy39rpUMTmgTUARGq2bFQWhDhdQNekK5v4uaLU699NPAnx9CubEJ82AkvD5ScoAZNYRwBxybayainhyThHAZWCdKmPYn"
-
-        /* Poll RPC daemons for new blocks every this many milliseconds. */
-        "blockRefreshInterval": 1000,
-
-        /* How many seconds until we consider a miner disconnected. */
-        "minerTimeout": 900,
-
-        "ports": [
-            {
-                "port": 5555, //Port for mining apps to connect to
-                "protocol": "tcp",
-                "difficulty": 200, //Initial difficulty miners are set to
-                "desc": "Mid range CPUs" //Description of port
-            },
-            {
-                "port": 7777,
-                "protocol": "tcp",
-                "difficulty": 2000,
-                "desc": "High end CPUs"
-            },
-            /* Old, inefficient protocol which has worse hashrate, higher network/CPU server load,
-               higher orphan block percent, more error prone, etc. */
-            {
-                "port": 1111,
-                "protocol": "http",
-                "difficulty": 500,
-                "desc": "Old protocol"
-            }
-        ],
-
-        /* Variable difficulty is a feature that will automatically adjust difficulty for
-           individual miners based on their hashrate in order to lower networking and CPU
-           overhead. */
-        "varDiff": {
-            "minDiff": 2, //Minimum difficulty
-            "maxDiff": 10000,
-            "targetTime": 100, //Try to get 1 share per this many seconds
-            "retargetTime": 30, //Check to see if we should retarget every this many seconds
-            "variancePercent": 30, //Allow time to very this % from target without retargeting
-            "maxJump": 1000 //Limit how much diff can increase/decrease in a single retargetting
-        },
-
-        /* Feature to trust share difficulties from miners which can significantly reduce CPU load. */
-        "shareTrust": {
-            "enabled": true,
-            "min": 10, //Minimum percent probability for share hashing
-            "stepDown": 3, //Increase trust probability percent this much with each valid share
-            "threshold": 10, //Amount of valid shares required before trusting begins
-            "penalty": 30 //Upon breaking trust require this many valid share before re-trusting
-        },
-
-        /* Only used with old http protocol and only works with the simpleminer. */
-        "longPolling": {
-            "enabled": true,
-            "timeout": 8500
-        },
-
-        /* If under low-diff share attack we can ban their IP to reduce system/network load. */
-        "banning": {
-            "enabled": true,
-            "time": 600, //How many seconds to ban worker for
-            "invalidPercent": 25, //What percent of invalid shares triggers ban
-            "checkThreshold": 30 //Perform check when this many shares have been submitted
-        }
+        /* How often (in seconds) to append/flush data to the log files. */
+        "flushInterval": 5
     },
 
-    /* Module that sends payments to miners according to their submitted shares. */
-    "payments": {
-        "enabled": true,
-        "interval": 600, //how often to run in seconds
-        "maxAddresses": 50, //split up payments if sending to more than this many addresses
-        "transferFee": 5000000000, //(min units) fee to pay for each transaction
-        "minPayment": 100000000000, //(min units) miner balance required before sending payment
-        "denomination": 100000000000 //(min units) truncate to this precision and store remainder
-    },
-
-    /* Module that monitors the submitted block maturities and manages rounds. Confirmed blocks
-       mark the end of a round where workers' balances are increased in proportion to their shares. */
-    "blockUnlocker": {
-        "enabled": true,
-        "interval": 30, //how often to check block statuses in seconds
-        "depth": 60, //block depth required to send payments (CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW)
-        "poolFee": 2 //2% pool fee
-    },
-
-    /* AJAX/EventSource API used for front-end website. */
-    "api": {
-        "enabled": true,
-        "hashrateWindow": 600, //how many second worth of shares used to estimate hash rate
-        "updateInterval": 3, //gather stats and broadcast every this many seconds
-        "port": 8117
-    },
-
-    /* Coin daemon connection details. */
-    "daemon": {
-        "host": "127.0.0.1",
-        "port": 18081
-    },
-
-    /* Wallet daemon connection details. */
-    "wallet": {
-        "host": "127.0.0.1",
-        "port": 8082
-    },
-
-    /* Redis connection into. */
-    "redis": {
-        "host": "127.0.0.1",
-        "port": 6379
+    "console": {
+        "level": "info",
+        /* Gives console output useful colors. If you direct that output to a log file
+           then disable this feature to avoid nasty characters in the file. */
+        "colors": true
     }
+},
+
+/* Modular Pool Server */
+"poolServer": {
+    "enabled": true,
+
+    /* Set to "auto" by default which will spawn one process/fork/worker for each CPU
+       core in your system. Each of these workers will run a separate instance of your
+       pool(s), and the kernel will load balance miners using these forks. Optionally,
+       the 'forks' field can be a number for how many forks will be spawned. */
+    "clusterForks": "auto",
+
+    /* Address where block rewards go, and miner payments come from. */
+    "poolAddress": "4AsBy39rpUMTmgTUARGq2bFQWhDhdQNekK5v4uaLU699NPAnx9CubEJ82AkvD5ScoAZNYRwBxybayainhyThHAZWCdKmPYn"
+
+    /* Poll RPC daemons for new blocks every this many milliseconds. */
+    "blockRefreshInterval": 1000,
+
+    /* How many seconds until we consider a miner disconnected. */
+    "minerTimeout": 900,
+
+    "ports": [
+        {
+            "port": 3333, //Port for mining apps to connect to
+            "difficulty": 100, //Initial difficulty miners are set to
+            "desc": "Low end hardware" //Description of port
+        },
+        {
+            "port": 5555,
+            "difficulty": 2000,
+            "desc": "Mid range hardware"
+        },
+        {
+            "port": 7777,
+            "difficulty": 10000,
+            "desc": "High end hardware"
+        }
+    ],
+
+    /* Variable difficulty is a feature that will automatically adjust difficulty for
+       individual miners based on their hashrate in order to lower networking and CPU
+       overhead. */
+    "varDiff": {
+        "minDiff": 2, //Minimum difficulty
+        "maxDiff": 100000,
+        "targetTime": 100, //Try to get 1 share per this many seconds
+        "retargetTime": 30, //Check to see if we should retarget every this many seconds
+        "variancePercent": 30, //Allow time to very this % from target without retargeting
+        "maxJump": 1000 //Limit diff increase/decrease in a single retargetting
+    },
+
+    /* Feature to trust share difficulties from miners which can
+       significantly reduce CPU load. */
+    "shareTrust": {
+        "enabled": true,
+        "min": 10, //Minimum percent probability for share hashing
+        "stepDown": 3, //Increase trust probability % this much with each valid share
+        "threshold": 10, //Amount of valid shares required before trusting begins
+        "penalty": 30 //Upon breaking trust require this many valid share before trusting
+    },
+
+    /* If under low-diff share attack we can ban their IP to reduce system/network load. */
+    "banning": {
+        "enabled": true,
+        "time": 600, //How many seconds to ban worker for
+        "invalidPercent": 25, //What percent of invalid shares triggers ban
+        "checkThreshold": 30 //Perform check when this many shares have been submitted
+    }
+},
+
+/* Module that sends payments to miners according to their submitted shares. */
+"payments": {
+    "enabled": true,
+    "interval": 600, //how often to run in seconds
+    "maxAddresses": 50, //split up payments if sending to more than this many addresses
+    "transferFee": 5000000000, //fee to pay for each transaction
+    "minPayment": 100000000000, //miner balance required before sending payment
+    "denomination": 100000000000 //truncate to this precision and store remainder
+},
+
+/* Module that monitors the submitted block maturities and manages rounds. Confirmed
+   blocks mark the end of a round where workers' balances are increased in proportion
+   to their shares. */
+"blockUnlocker": {
+    "enabled": true,
+    "interval": 30, //how often to check block statuses in seconds
+
+    /* Block depth required for a block to unlocked/mature. Found in daemon source as
+       the variable CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW */
+    "depth": 60,
+    "poolFee": 2 //2% pool fee
+},
+
+/* AJAX API used for front-end website. */
+"api": {
+    "enabled": true,
+    "hashrateWindow": 600, //how many second worth of shares used to estimate hash rate
+    "updateInterval": 3, //gather stats and broadcast every this many seconds
+    "port": 8117
+},
+
+/* Coin daemon connection details. */
+"daemon": {
+    "host": "127.0.0.1",
+    "port": 18081
+},
+
+/* Wallet daemon connection details. */
+"wallet": {
+    "host": "127.0.0.1",
+    "port": 8082
+},
+
+/* Redis connection into. */
+"redis": {
+    "host": "127.0.0.1",
+    "port": 6379
 }
 ```
 
@@ -312,17 +304,53 @@ node init.js -config=config_backup.json
 
 #### 5) Host the front-end
 
-Edit `index.html` to use your pool API configuration
+Simply host the contents of the `website` directory on file server capable of serving simple static files.
+
+Edit the variables in `website/index.html` to use your pool's specific configuration. Variable explanations:
 
 ```html
-    <script>
+<script>
 
-        var api = 'http://poolhost:8117';
+    /* Must point to the API setup in your config.json file. */
+    var api = "http://poolhost:8117";
 
-    </script>
+    /* Minimum units in a single coin, for Bytecoin its 100000000. */
+    var coinUnits = 1000000000000;
+
+    /* Pool server host to instruct your miners to point to.  */
+    var poolHost = "cryppit.com";
+
+    /* IRC Server and room used for embedded KiwiIRC chat. */
+    var irc = "irc.freenode.net/#monero";
+
+    /* Contact email address. */
+    var email = "support@cryppit.com";
+
+    /* Market stat display params from https://www.cryptonator.com/widget */
+    var cryptonatorWidget = ["XMR-BTC", "XMR-USD", "XMR-EUR", "XMR-GBP"];
+
+    /* Download link to cryptonote-easy-miner for Windows users. */
+    var easyminerDownload = "https://github.com/zone117x/cryptonote-easy-miner/releases/";
+
+    /* Download link to simplewallet for your configured coin. */
+    var simplewalletDownload = "http://bit.ly/monero-starter-pack";
+
+    /* Used for front-end block links. For other coins it can be changed, for example with
+       Bytecoin you can use "https://minergate.com/blockchain/bcn/block/". */
+    var blockchainExplorer = "http://monerochain.info/block/";
+
+</script>
 ```
 
-Then simply serve the file via nginx, Apache, Google Drive, or anything that can host static content.
+#### 6) Customize your website
+
+The following files are included so that you can customize your pool website without having to make significant changes
+to `index.html` thus reducing the difficulty of merging updates to `index.html` with your own changes:
+* `additional.css` for creating your own pool style
+* `addtional.js` for changing the functionality of your pool website
+* `info.html` for display news/updates/information on your site
+
+Then simply serve the files via nginx, Apache, Google Drive, or anything that can host static content.
 
 
 #### Upgrading
@@ -357,7 +385,7 @@ Documentation for JSON-RPC commands can be found here:
 Curl can be used to use the JSON-RPC commands from command-line. Here is an example of calling `getblockheaderbyheight` for block 100:
 
 ```bash
-curl -X POST http://127.0.0.1:18081/json_rpc -d '{"jsonrpc":"2.0","id":"test","method":"getblockheaderbyheight","params":{"height":100}}'
+curl 127.0.0.1:18081/json_rpc -d '{"method":"getblockheaderbyheight","params":{"height":100}}'
 ```
 
 
@@ -370,14 +398,15 @@ curl -X POST http://127.0.0.1:18081/json_rpc -d '{"jsonrpc":"2.0","id":"test","m
 
 Donations
 ---------
+* BTC: `1667jMt7NTZDaC8WXAxtMYBR8DPWCVoU4d`
 * MRO: `48Y4SoUJM5L3YXBEfNQ8bFNsvTNsqcH5Rgq8RF7BwpgvTBj2xr7CmWVanaw7L4U9MnZ4AG7U6Pn1pBhfQhFyFZ1rL1efL8z`
-* BCN: `asdf`
 
 Credits
 ===
 
 * [LucasJones](//github.com/LucasJones) - Co-dev on this project; did tons of debugging for binary structures and fixing them. Pool couldn't have been made without him.
 * [surfer43](//github.com/iamasupernova) - Did lots of testing during development to help figure out bugs and get them fixed
+* [wallet42](http://moneropool.com) - Funded development of payment denominating and min threshold feature
 * [Wolf0](https://bitcointalk.org/index.php?action=profile;u=80740) - Helped try to deobfuscate some of the daemon code for getting a bug fixed
 * [Tacotime](https://bitcointalk.org/index.php?action=profile;u=19270) - helping with figuring out certain problems and lead the bounty for this project's creation
 
