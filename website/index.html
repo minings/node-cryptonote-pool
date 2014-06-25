@@ -10,15 +10,15 @@
     <script>
 
 
-        var api = "http://cryppit.com:8117";
+        var api = "http://minin.gs:8117";
 
         var coinUnits = 1000000000000;
 
-        var poolHost = "cryppit.com";
+        var poolHost = "minin.gs";
 
-        var irc = "irc.freenode.net/#monero";
+        var irc = "irc.freenode.net/#quazarcoin";
 
-        var email = "support@cryppit.com";
+        var email = "support@minin.gs";
 
         var cryptonatorWidget = ["XMR-BTC", "XMR-USD", "XMR-EUR", "XMR-GBP"];
 
@@ -191,17 +191,11 @@
     $(function(){
 
         $('#siteInfo').load('info.html');
-        /*$.get('info.html', function(html){
-            $('#siteInfo').html(html);
-        }, 'html');*/
 
         $.get(api + '/stats', function(data){
             renderStats(data);
             updateMarkets();
         });
-
-
-
 
         function fetchLiveStats() {
             $.ajax({
@@ -224,8 +218,6 @@
             pageRouter();
         };
 
-
-
         pageRouter();
 
         $('#networkLastBlockFound,#poolLastBlockFound,#yourLastShare,#marketLastUpdated').timeago();
@@ -238,6 +230,7 @@
 
         var addressEventSource;
         var addressTimeout;
+
 
         $('#lookUp').click(function(){
 
@@ -407,12 +400,12 @@
 
             $('#blocksMaturityCount').text(stats.config.depth);
 
-            renderBlocks(stats.pool.blocks, stats.config.depth, stats.network.height, blockchainExplorer);
+            /*renderBlocks(stats.pool.blocks, stats.config.depth, stats.network.height, blockchainExplorer);
 
             $('#blocks_rows').find('tr[class=""]').each(function(){
                 var height = parseInt(this.children[0].innerHTML);
                 this.children[1].innerHTML = getMaturity(stats.config.depth, stats.network.height, height);
-            });
+            });*/
 
             $('#poolVersion').text(stats.config.version);
 
@@ -434,20 +427,7 @@
         var lastBlocksJson = '';
 
         function renderBlocks(blocksResults, depth, chainHeight, explorer){
-            var blocks = [];
-            for (var status in blocksResults){
-                var blockArray = blocksResults[status];
-                for (var i = 0; i < blockArray.length; i++){
-                    var blockData = blockArray[i].split(':');
-                    blockData[0] = parseInt(blockData[0]);
-                    blockData.unshift(status);
-                    blocks.push(blockData);
-                }
-            }
-            blocks.sort(function(a, b){
-                return b[1] - a[1];
-            });
-
+            var blocks = blocksResults;
             var blocksJson = JSON.stringify(blocks);
             if (lastBlocksJson === blocksJson) return;
             lastBlocksJson = blocksJson;
@@ -573,6 +553,11 @@
             $link.parent().addClass('active');
             var page = $link.data('page');
             $('#' + page).show();
+            if(window.location.hash == "#pool_bocks") {
+                $.get(api + '/blockstats', function(data){
+                    renderBlocks(data, stats.config.depth, stats.network.height, blockchainExplorer);
+                });
+            }            
         }
 
         var address = docCookies.getItem('mining_address');
