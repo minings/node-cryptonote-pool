@@ -420,13 +420,16 @@
 
         function getMaturity(depth, chainHeight, blockHeight){
             var toGo = depth - (chainHeight - blockHeight);
-            if (toGo < 1) return '';
+            if (toGo < 1 || !isNaN(toGo)) return '';
+
             return '' + toGo + ' to go';
         }
 
         var lastBlocksJson = '';
 
         function renderBlocks(result, depth, chainHeight, explorer){
+            console.log('Depth '+depth);
+            console.log('Height '+chainHeight);
             var blocks = result.stats.blocks;
             var blocksJson = JSON.stringify(blocks);
             if (lastBlocksJson === blocksJson) return;
@@ -555,7 +558,7 @@
             $('#' + page).show();
             if(window.location.hash == "#pool_blocks") {
                 $.get(api + '/blockstats', function(data){
-                    renderBlocks(data, data.config.depth, data.network.height, blockchainExplorer);
+                    renderBlocks(data.stats, data.config.depth, data.network.height, blockchainExplorer);
                 });
             }            
         }
