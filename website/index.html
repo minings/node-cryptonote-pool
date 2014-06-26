@@ -419,6 +419,9 @@
         }
 
         function getMaturity(depth, chainHeight, blockHeight){
+            console.log('Depth '+depth);
+            console.log('Height '+chainHeight);
+            console.log('blockHeight '+blockHeight);
             var toGo = depth - (chainHeight - blockHeight);
             if (toGo < 1 || !isNaN(toGo)) return '';
 
@@ -428,8 +431,6 @@
         var lastBlocksJson = '';
 
         function renderBlocks(result, depth, chainHeight, explorer){
-            console.log('Depth '+depth);
-            console.log('Height '+chainHeight);
             var blocks = result.blocks;
             var blocksJson = JSON.stringify(blocks);
             if (lastBlocksJson === blocksJson) return;
