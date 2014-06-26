@@ -426,8 +426,8 @@
 
         var lastBlocksJson = '';
 
-        function renderBlocks(blocksResults, depth, chainHeight, explorer){
-            var blocks = blocksResults.blocks;
+        function renderBlocks(result, depth, chainHeight, explorer){
+            var blocks = result.stats.blocks;
             var blocksJson = JSON.stringify(blocks);
             if (lastBlocksJson === blocksJson) return;
             lastBlocksJson = blocksJson;
@@ -457,9 +457,9 @@
             }
 
             $('#blocks_rows').empty().append(rows);
-            $('#blocksCountPending').text(blocksResults.pending);
-            $('#blocksCountUnlocked').text(blocksResults.unlocked);
-            $('#blocksCountOrphaned').text(blocksResults.orphaned);
+            $('#blocksCountPending').text(result.stats.pending);
+            $('#blocksCountUnlocked').text(result.stats.unlocked);
+            $('#blocksCountOrphaned').text(result.stats.orphaned);
 
         }
 
