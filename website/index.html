@@ -419,11 +419,8 @@
         }
 
         function getMaturity(depth, chainHeight, blockHeight){
-            console.log('Depth '+depth);
-            console.log('Height '+chainHeight);
-            console.log('blockHeight '+blockHeight);
             var toGo = depth - (chainHeight - blockHeight);
-            if (toGo < 1 || !isNaN(toGo)) return '';
+            if (toGo < 1 || isNaN(toGo)) return '';
 
             return '' + toGo + ' to go';
         }
