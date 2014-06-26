@@ -553,7 +553,7 @@
             $link.parent().addClass('active');
             var page = $link.data('page');
             $('#' + page).show();
-            if(window.location.hash == "#pool_bocks") {
+            if(window.location.hash == "#pool_blocks") {
                 $.get(api + '/blockstats', function(data){
                     renderBlocks(data, stats.config.depth, stats.network.height, blockchainExplorer);
                 });
