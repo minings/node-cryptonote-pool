@@ -453,7 +453,7 @@
                 var block = blocks[i];
                 rows += ('<tr title="' + block[0] + '" class="' + blockStatusClasses[block[0]] + '">' +
                         '<td>' + block[1] + '</td>' +
-                        '<td>' + (block[0] === 'pending' ? getMaturity(depth, chainHeight, blocks[1]) : '') + '</td>' +
+                        '<td>' + (block[0] === 'pending' ? getMaturity(depth, chainHeight, block[1]) : '') + '</td>' +
                         '<td>' + block[2] + '</td>' +
                         '<td><a target="_blank" href="' + explorer + block[3] + '">' + block[3] + '</a></td>' +
                         '<td>' + formatDate(block[4]) + '</td>' +
