@@ -427,7 +427,7 @@
         var lastBlocksJson = '';
 
         function renderBlocks(blocksResults, depth, chainHeight, explorer){
-            var blocks = blocksResults;
+            var blocks = blocksResults.blocks;
             var blocksJson = JSON.stringify(blocks);
             if (lastBlocksJson === blocksJson) return;
             lastBlocksJson = blocksJson;
@@ -457,9 +457,9 @@
             }
 
             $('#blocks_rows').empty().append(rows);
-            $('#blocksCountPending').text(Object.keys(blocksResults['pending']).length);
-            $('#blocksCountUnlocked').text(Object.keys(blocksResults['unlocked']).length);
-            $('#blocksCountOrphaned').text(Object.keys(blocksResults['orphaned']).length);
+            $('#blocksCountPending').text(blocksResults.pending);
+            $('#blocksCountUnlocked').text(blocksResults.unlocked);
+            $('#blocksCountOrphaned').text(blocksResults.orphaned);
 
         }
 
